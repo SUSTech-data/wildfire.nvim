@@ -107,43 +107,4 @@ function M.update_selection(buf, node_or_range, selection_mode)
     vim.cmd("normal! o")
     api.nvim_win_set_cursor(0, { end_row, end_col - 1 })
 end
-function M.unsurround_coordinates(srow, scol, erow, ecol, buf)
-    -- local lines = vim.split(s, "\n")
-    local lines = vim.api.nvim_buf_get_text(buf, srow - 1, scol - 1, erow - 1, ecol, {})
-    local node_text = table.concat(lines, "\n")
-    local match_brackets = string.match(node_text, "^%b{}$")
-        or string.match(node_text, "^%b()$")
-        or string.match(node_text, "^%b[]$")
-    if match_brackets == nil then
-        return false, { srow, scol, erow, ecol }
-    end
-    lines[1] = lines[1]:sub(2)
-    local nsrow, nscol = 0, 0
-    for index, line in ipairs(lines) do
-        if line:match("%S") then
-            nsrow = index
-            nscol = line:len() - line:match("^%s*(.*)"):len()
-            break
-        end
-    end
-
-    lines[#lines] = lines[#lines]:sub(1, -2)
-    local nerow, necol = #lines, 0
-    for index = #lines, 1, -1 do
-        local line = lines[index]
-        if line:match("%S") then
-            nerow = index
-            necol = line:len() - line:match("^(.*%S)%s*$"):len()
-            break
-        end
-    end
-
-    nsrow = srow + nsrow - 1
-    nscol = nsrow == srow and scol + nscol + 1 or nscol + 1
-    -- nerow = erow - nerow + 1
-    nerow = srow + nerow - 1
-    necol = nerow == erow and ecol - necol - 1 or lines[nerow - srow + 1]:len() - necol
-
-    return true, { nsrow, nscol, nerow, necol }
-end
 return M
