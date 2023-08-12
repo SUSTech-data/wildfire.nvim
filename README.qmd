@@ -61,7 +61,13 @@ Currently you can only set unit width surround, refer to the default settings be
     },
 }
 ```
+The quick selection havn't support natively, but you can try it out by
 
+```lua
+:lua require'wildfire'.init_selection()<CR>:lua require('tsht').nodes()<CR>
+```
+
+which is powered by [treehopper](https://github.com/mfussenegger/nvim-treehopper), [flash](https://github.com/folke/flash.nvim/tree/main) also provide similar things
 
 
 ## Roadmap
