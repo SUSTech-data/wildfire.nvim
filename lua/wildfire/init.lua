@@ -9,6 +9,7 @@ local M = {}
 ---@type table<integer, table<TSNode|nil>>
 local selections = {}
 local nodes_all = {}
+local count = 1
 
 local function inner_node(node, buf)
     local srow, scol, erow, ecol = ts_utils.get_vim_range({ node:range() })
@@ -40,8 +41,14 @@ local function init_by_node(node)
     -- end
 end
 function M.init_selection()
+    count = vim.v.count1
     local node = ts_utils.get_node_at_cursor()
     init_by_node(node)
+    if count > 1 then
+        for i = 1, count - 1 do
+            M.node_incremental()
+        end
+    end
 end
 
 -- Get the range of the current visual selection.
@@ -55,8 +62,13 @@ local function select_incremental(get_parent)
     return function()
         local buf = api.nvim_get_current_buf()
         local nodes = nodes_all[buf]
+        local csrow, cscol, cerow, cecol
+        if count <= 1 then
+            csrow, cscol, cerow, cecol = utils.visual_selection_range()
+        else
+            csrow, cscol, cerow, cecol = utils.get_range(selections[buf][#selections[buf]])
+        end
 
-        local csrow, cscol, cerow, cecol = utils.visual_selection_range()
         -- Initialize incremental selection with current selection
         if not nodes or #nodes == 0 then
             local root = parsers.get_parser():parse()[1]:root()
