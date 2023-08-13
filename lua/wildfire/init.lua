@@ -208,7 +208,14 @@ function M.setup(options)
             mode = "x"
             rhs = string.format(":lua require'wildfire'.%s()<CR>", funcname)
         end
-        vim.keymap.set(mode, mapping, rhs, { silent = true, noremap = true, desc = FUNCTION_DESCRIPTIONS[funcname] })
+        if mapping then
+            vim.keymap.set(
+                mode,
+                mapping,
+                rhs,
+                { silent = true, noremap = true, desc = FUNCTION_DESCRIPTIONS[funcname] }
+            )
+        end
     end
 end
 

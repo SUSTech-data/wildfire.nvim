@@ -123,6 +123,8 @@ settings below.
 }
 ```
 
+To disable a keymaps, set it to `nil` or `false`.
+
 The quick selection havn’t support natively, but you can try it out by
 
 ``` lua
