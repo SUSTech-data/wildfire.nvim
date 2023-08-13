@@ -86,6 +86,32 @@ You can check out their introduction to get a sense of it.
 - `BS` Decremental selection.
 - `NUM-CR` Accelerate selection with count prefix.
 
+This plugin offers a streamlined method for text selection, freeing you
+from the hassle of configuring and remembering intricate text objects.
+Plus, initiating this plugin with `CR` seamlessly transitions you into
+visual mode. This means you can still harness the power of your
+preferred text objects without any extra keystrokes (like `v-i-b` or
+`CR-i-b`).
+
+Beyond the basic actions such as yank(`CR`), delete(`d`), and change
+(`c`), here are a few other awesome tricks up its sleeve:
+
+- 📐 Partially format with: textDocument/rangeFormatting
+- 🔍 Narrow down regions using:
+  [nag.nvim](https://github.com/haolian9/nag.nvim)
+- 🖋️ Adding surrounding pairs via:
+  [nvim-surround](https://github.com/kylechui/nvim-surround)
+
+<div>
+
+> **Tip**
+>
+> This plugin embodies my endeavor to embrace the Helix-inspired select
+> first method. The horizon is vast, and the possibilities limitless.
+> Come, let’s explore the extent of what we can achieve together! 🚀
+
+</div>
+
 ## Installation
 
 ``` lua

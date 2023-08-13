@@ -42,6 +42,19 @@ The useage is almost the same as [wildfire.vim](https://github.com/gcmt/wildfire
 - {{< kbd BS >}} Decremental selection.
 - {{< kbd NUM-CR >}} Accelerate selection with count prefix.
 
+This plugin offers a streamlined method for text selection, freeing you from the hassle of configuring and remembering intricate text objects. Plus, initiating this plugin with {{< kbd CR >}} seamlessly transitions you into visual mode. This means you can still harness the power of your preferred text objects without any extra keystrokes (like {{< kbd v-i-b >}} or {{< kbd CR-i-b >}}).
+
+Beyond the basic actions such as yank({{< kbd CR >}}), delete({{< kbd d >}}), and change ({{< kbd c >}}), here are a few other awesome tricks up its sleeve:
+
+- 📐 Partially format with: textDocument/rangeFormatting
+- 🔍 Narrow down regions using: [nag.nvim](https://github.com/haolian9/nag.nvim)
+- 🖋️ Adding surrounding pairs via: [nvim-surround](https://github.com/kylechui/nvim-surround)
+
+::: {.callout-tip}
+
+This plugin embodies my endeavor to embrace the Helix-inspired select first method. The horizon is vast, and the possibilities limitless. Come, let's explore the extent of what we can achieve together! 🚀
+
+:::
 
 ## Installation
 
