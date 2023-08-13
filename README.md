@@ -54,17 +54,37 @@ alt="Quick selection (leverage by treehopper)" /></p>
 
 ## Motivation
 
-I’ve found that treesitter’s incremental_selection is particularly handy
-for text selection. It often allows for selecting the desired text with
-fewer keystrokes compared to a well-configured wildfire.vim, all without
-the need to set up intricate text objects.
+I’ve found that treesitter’s
+[`incremental_selection`](https://www.reddit.com/r/neovim/comments/r10llx/the_most_amazing_builtin_feature_nobody_ever/)
+is particularly handy for text selection. It often allows for selecting
+the desired text with fewer keystrokes compared to a well-configured
+wildfire.vim, all without the need to set up intricate text objects.
 
 However, since treesitter relies solely on AST for incremental
-selection, it tends to be overly aggressive for surrounds. In such case,
-I havt to revert to using text objects for selection, which is annoyed
-and tripped me up in practical use. On the other hand, treesitter
-doesn’t support the ‘count prefix’, which can make it somewhat
-cumbersome when dealing with longer ranges.”
+selection, it tends to be overly **aggressive** for surrounds. In such
+case, I havt to revert to using text objects for selection, which is
+annoyed and tripped me up in practical use.
+
+On the other hand, treesitter doesn’t support the
+`count prefix(vim.v.count)`, which can make it somewhat cumbersome when
+dealing with longer ranges. Its implementation is also a bit buggy, as
+you might select an area within the same range(see below).
+
+> A picture is worth a thousand words
+
+![](assets/comp.gif)
+
+## Usage
+
+The useage is almost the same as
+[wildfire.vim](https://github.com/gcmt/wildfire.vim) and
+[`incremental_selection`](https://www.reddit.com/r/neovim/comments/r10llx/the_most_amazing_builtin_feature_nobody_ever/),
+You can check out their introduction to get a sense of it.
+
+- `CR` Init selection and do incremental selection if you have
+  initilized (so just keep pressing `CR`).
+- `BS` Decremental selection.
+- `NUM-CR` Accelerate selection with count prefix.
 
 ## Installation
 
@@ -80,6 +100,9 @@ cumbersome when dealing with longer ranges.”
 ```
 
 ## Configuration
+
+This plugin is modified based on the official implementation of
+treesitter, so you can configure it in a very similar manner.
 
 Currently you can only set unit width surround, refer to the default
 settings below.
