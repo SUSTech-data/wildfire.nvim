@@ -62,7 +62,7 @@ wildfire.vim, all without the need to set up intricate text objects.
 
 However, since treesitter relies solely on AST for incremental
 selection, it tends to be overly **aggressive** for surrounds. In such
-case, I havt to revert to using text objects for selection, which is
+case, I have to revert to using text objects for selection, which is
 annoyed and tripped me up in practical use.
 
 On the other hand, treesitter doesn’t support the
