@@ -101,6 +101,9 @@ end
 function M.init_selection()
     count = vim.v.count1
     local node = ts_utils.get_node_at_cursor()
+    if not node then
+        return
+    end
     init_by_node(node)
     if count > 1 then
         for i = 1, count - 1 do
