@@ -1,5 +1,6 @@
 local api = vim.api
 
+local keymap = vim.keymap
 local ts_utils = require("nvim-treesitter.ts_utils")
 local parsers = require("nvim-treesitter.parsers")
 local utils = require("wildfire.utils")
@@ -18,6 +19,7 @@ M.options = {
         node_incremental = "<CR>",
         node_decremental = "<BS>",
     },
+    filetype_exclude = { "qf" },
 }
 
 ---@type table<integer, table<TSNode|nil>>
@@ -202,8 +204,9 @@ function M.setup(options)
     if type(options) == "table" then
         M.options = vim.tbl_deep_extend("force", M.options, options)
     end
-    local mode, rhs
     for funcname, mapping in pairs(M.options.keymaps) do
+        local mode, rhs, opts
+        opts = { silent = true, noremap = true, desc = FUNCTION_DESCRIPTIONS[funcname] }
         if funcname == "init_selection" then
             mode = "n"
             rhs = M[funcname]
@@ -212,12 +215,17 @@ function M.setup(options)
             rhs = string.format(":lua require'wildfire'.%s()<CR>", funcname)
         end
         if mapping then
-            vim.keymap.set(
-                mode,
-                mapping,
-                rhs,
-                { silent = true, noremap = true, desc = FUNCTION_DESCRIPTIONS[funcname] }
-            )
+            local augroup_revert = vim.api.nvim_create_augroup("revert" .. mode .. mapping, {})
+            keymap.set(mode, mapping, rhs, opts)
+            vim.api.nvim_create_autocmd({ "FileType" }, {
+                group = augroup_revert,
+                pattern = M.options.filetype_exclude,
+                desc = "Revert wildfire's keymapping on filetypes",
+                callback = function()
+                    keymap.set(mode, mapping, mapping, { buffer = true })
+                    -- vim.cmd('noremap <CR> <CR>')
+                end,
+            })
         end
     end
 end
