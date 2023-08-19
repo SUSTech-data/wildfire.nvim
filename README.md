@@ -96,11 +96,12 @@ preferred text objects without any extra keystrokes (like `v-i-b` or
 Beyond the basic actions such as yank(`CR`), delete(`d`), and change
 (`c`), here are a few other awesome tricks up its sleeve:
 
-- 📐 Partially format with: textDocument/rangeFormatting
-- 🔍 Narrow down regions using:
+- Partially format with: textDocument/rangeFormatting
+- Narrow down regions using:
   [nag.nvim](https://github.com/haolian9/nag.nvim)
-- 🖋️ Adding surrounding pairs via:
+- Adding surrounding pairs via:
   [nvim-surround](https://github.com/kylechui/nvim-surround)
+- Comments with [comment.nvim](https://github.com/numToStr/Comment.nvim)
 
 <div>
 
@@ -130,8 +131,8 @@ Beyond the basic actions such as yank(`CR`), delete(`d`), and change
 This plugin is modified based on the official implementation of
 treesitter, so you can configure it in a very similar manner.
 
-Currently you can only set unit width surround, refer to the default
-settings below.
+Currently you can only set surroundings with unit width, refer to the
+default settings below.
 
 ``` lua
 {
@@ -146,6 +147,7 @@ settings below.
         node_incremental = "<CR>",
         node_decremental = "<BS>",
     },
+    filetype_exclude = { "qf" }, --keymaps will be unset in excluding filetypes
 }
 ```
 
@@ -165,6 +167,7 @@ similar things
 ## Roadmap
 
 - [x] init with count prefix
+- [x] support configuring exclude filetypes
 - [ ] Native quick selection support
 - [ ] Advanced surround support (Any length)
 - [ ] Handle surround in node
