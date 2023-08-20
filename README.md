@@ -76,7 +76,7 @@ you might select an area within the same range(see below).
 
 ## Usage
 
-The useage is almost the same as
+The usage is almost the same as
 [wildfire.vim](https://github.com/gcmt/wildfire.vim) and
 [`incremental_selection`](https://www.reddit.com/r/neovim/comments/r10llx/the_most_amazing_builtin_feature_nobody_ever/),
 You can check out their introduction to get a sense of it.
