@@ -223,7 +223,11 @@ function M.setup(options)
                 desc = "Revert wildfire's keymapping on filetypes",
                 callback = function()
                     keymap.set(mode, mapping, mapping, { buffer = true })
-                    -- vim.cmd('noremap <CR> <CR>')
+                end,
+            })
+            vim.api.nvim_create_autocmd({ "CmdwinEnter" }, {
+                callback = function()
+                    keymap.set(mode, mapping, mapping, { buffer = true })
                 end,
             })
         end
