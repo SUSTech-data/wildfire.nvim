@@ -2,16 +2,11 @@ local api = vim.api
 
 local keymap = vim.keymap
 local utils = require("wildfire.utils")
+local surround = require("wildfire.surround")
 
 local M = {}
 
 M.options = {
-    surrounds = {
-        { "(", ")" },
-        { "{", "}" },
-        { "<", ">" },
-        { "[", "]" },
-    },
     keymaps = {
         init_selection = "<CR>",
         node_incremental = "<CR>",
@@ -25,70 +20,16 @@ local selections = {}
 local nodes_all = {}
 local count = 1
 
-function M.unsurround_coordinates(node_or_range, buf)
-    -- local lines = vim.split(s, "\n")
-    local srow, scol, erow, ecol = utils.get_range(node_or_range)
-
-    -- Validate buffer bounds to prevent index out of bounds error
-    local line_count = vim.api.nvim_buf_line_count(buf)
-    if srow < 1 or erow > line_count or srow > erow then
-        return false, { srow, scol, erow, ecol }
+---Get inner coordinates for a surround node
+---@param node TSNode
+---@param _ integer? buffer (unused, kept for API compatibility)
+---@return boolean is_surround
+---@return table {srow, scol, erow, ecol} 1-based vim coordinates
+function M.unsurround_coordinates(node, _)
+    if surround.is_surround(node) then
+        return true, surround.get_inner_range(node)
     end
-
-    -- Validate column bounds for the specific lines
-    if scol < 1 or ecol < 0 then
-        return false, { srow, scol, erow, ecol }
-    end
-
-    -- Use pcall to safely get text, handle any edge cases
-    local ok, lines = pcall(vim.api.nvim_buf_get_text, buf, srow - 1, scol - 1, erow - 1, ecol, {})
-    if not ok or not lines or #lines == 0 then
-        return false, { srow, scol, erow, ecol }
-    end
-
-    local node_text = table.concat(lines, "\n")
-    local match_brackets = nil
-    for _, pair in ipairs(M.options.surrounds) do
-        local pattern = "^%" .. pair[1] .. ".*%" .. pair[2] .. "$"
-        match_brackets = string.match(node_text, pattern)
-        if match_brackets then
-            break
-        end
-    end
-    -- local match_brackets = string.match(node_text, "^%b{}$")
-    --     or string.match(node_text, "^%b()$")
-    --     or string.match(node_text, "^%b[]$")
-    if match_brackets == nil then
-        return false, { srow, scol, erow, ecol }
-    end
-    lines[1] = lines[1]:sub(2)
-    local nsrow, nscol = 0, 0
-    for index, line in ipairs(lines) do
-        if line:match("%S") then
-            nsrow = index
-            nscol = line:len() - line:match("^%s*(.*)"):len()
-            break
-        end
-    end
-
-    lines[#lines] = lines[#lines]:sub(1, -2)
-    local nerow, necol = #lines, 0
-    for index = #lines, 1, -1 do
-        local line = lines[index]
-        if line:match("%S") then
-            nerow = index
-            necol = line:len() - line:match("^(.*%S)%s*$"):len()
-            break
-        end
-    end
-
-    nsrow = srow + nsrow - 1
-    nscol = nsrow == srow and scol + nscol + 1 or nscol + 1
-    -- nerow = erow - nerow + 1
-    nerow = srow + nerow - 1
-    necol = nerow == erow and ecol - necol - 1 or lines[nerow - srow + 1]:len() - necol
-
-    return true, { nsrow, nscol, nerow, necol }
+    return false, { utils.get_range(node) }
 end
 local function update_selection_by_node(node)
     local buf = api.nvim_get_current_buf()
@@ -259,8 +200,28 @@ end
 function M.visual_inner()
     local buf = api.nvim_get_current_buf()
     local csrow, cscol, cerow, cecol = utils.visual_selection_range()
-    local _, selection = M.unsurround_coordinates({ csrow, cscol, cerow, cecol }, buf)
-    utils.update_selection(buf, selection)
+
+    -- Get the treesitter node at the selection range
+    local ok, parser = pcall(vim.treesitter.get_parser, buf)
+    if not ok or not parser then
+        return
+    end
+
+    local tree = parser:parse()[1]
+    if not tree then
+        return
+    end
+
+    local root = tree:root()
+    local node = root:named_descendant_for_range(csrow - 1, cscol - 1, cerow - 1, cecol)
+    if not node then
+        return
+    end
+
+    local is_surround, selection = M.unsurround_coordinates(node, buf)
+    if is_surround then
+        utils.update_selection(buf, selection)
+    end
 end
 
 local FUNCTION_DESCRIPTIONS = {
