@@ -117,7 +117,7 @@ local function init_by_node(node)
 end
 function M.init_selection()
     count = vim.v.count1
-    local node = vim.treesitter.get_node()
+    local node = vim.treesitter.get_node({ ignore_injections = false })
     if not node then
         -- No treesitter node available, try to handle gracefully
         -- Check if treesitter is available for this filetype
@@ -181,21 +181,44 @@ local function select_incremental(get_parent)
         while true do
             local parent = get_parent(node)
             if not parent or parent == node then
-                -- Keep searching in the main tree
-                -- TODO: we should search on the parent tree of the current node.
+                -- Search in parent language tree for injected languages
                 local ok, parser = pcall(vim.treesitter.get_parser, buf)
                 if not ok or not parser then
                     utils.update_selection(buf, node)
                     return
                 end
-                local tree = parser:parse()[1]
-                if not tree then
-                    utils.update_selection(buf, node)
-                    return
-                end
-                local root = tree:root()
-                parent = root:named_descendant_for_range(csrow - 1, cscol - 1, cerow - 1, cecol)
-                if not parent or root == node or parent == node then
+
+                local range = { csrow - 1, cscol - 1, cerow - 1, cecol }
+                local current_lang_tree = parser:language_for_range(range)
+                local parent_lang_tree = current_lang_tree and current_lang_tree:parent()
+
+                if parent_lang_tree then
+                    local parent_tree = parent_lang_tree:tree_for_range(range)
+                    if parent_tree then
+                        local root = parent_tree:root()
+                        local candidate = root:named_descendant_for_range(csrow - 1, cscol - 1, cerow - 1, cecol)
+                        if candidate then
+                            local csr, csc, cer, cec = vim.treesitter.get_node_range(candidate)
+                            csr, csc, cer, cec = csr + 1, csc + 1, cer + 1, cec
+                            local candidate_range = { csr, csc, cer, cec }
+                            local current_range = { csrow, cscol, cerow, cecol }
+
+                            if utils.range_larger(candidate_range, current_range)
+                                and not utils.range_match(candidate_range, current_range) then
+                                parent = candidate
+                            else
+                                utils.update_selection(buf, node)
+                                return
+                            end
+                        else
+                            utils.update_selection(buf, node)
+                            return
+                        end
+                    else
+                        utils.update_selection(buf, node)
+                        return
+                    end
+                else
                     utils.update_selection(buf, node)
                     return
                 end
