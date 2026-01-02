@@ -198,8 +198,7 @@ local function select_incremental(get_parent)
                         local root = parent_tree:root()
                         local candidate = root:named_descendant_for_range(csrow - 1, cscol - 1, cerow - 1, cecol)
                         if candidate then
-                            local csr, csc, cer, cec = vim.treesitter.get_node_range(candidate)
-                            csr, csc, cer, cec = csr + 1, csc + 1, cer + 1, cec
+                            local csr, csc, cer, cec = utils.get_range(candidate)
                             local candidate_range = { csr, csc, cer, cec }
                             local current_range = { csrow, cscol, cerow, cecol }
 
@@ -224,11 +223,7 @@ local function select_incremental(get_parent)
                 end
             end
             node = parent
-            local nsrow, nscol, nerow, necol = vim.treesitter.get_node_range(node)
-            -- Convert 0-based to 1-based indexing to match vim coordinates
-            -- Note: treesitter end_col is exclusive, but vim coordinates are inclusive
-            nsrow, nscol, nerow, necol = nsrow + 1, nscol + 1, nerow + 1, necol
-            -- necol: 0-based exclusive == 1-based inclusive, so no +1 needed
+            local nsrow, nscol, nerow, necol = utils.get_range(node)
 
             local larger_range = utils.range_larger({ nsrow, nscol, nerow, necol }, { csrow, cscol, cerow, cecol })
 

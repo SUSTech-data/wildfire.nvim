@@ -123,7 +123,7 @@ function M.update_selection(buf, node_or_range, selection_mode)
     selection_mode = selection_mode or "charwise"
 
     -- Normalise selection_mode
-    if vim.tbl_contains(vim.tbl_keys(v_table), selection_mode) then
+    if v_table[selection_mode] then
         selection_mode = v_table[selection_mode]
     end
 
