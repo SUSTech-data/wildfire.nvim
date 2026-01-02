@@ -22,12 +22,16 @@ local count = 1
 
 ---Get inner coordinates for a surround node
 ---@param node TSNode
----@param _ integer? buffer (unused, kept for API compatibility)
+---@param buf integer? buffer number
 ---@return boolean is_surround
 ---@return table {srow, scol, erow, ecol} 1-based vim coordinates
-function M.unsurround_coordinates(node, _)
+function M.unsurround_coordinates(node, buf)
     if surround.is_surround(node) then
-        return true, surround.get_inner_range(node)
+        local inner = surround.get_inner_range(node, buf)
+        if inner then
+            return true, inner
+        end
+        -- Empty content (e.g., () or {}), use node range
     end
     return false, { utils.get_range(node) }
 end

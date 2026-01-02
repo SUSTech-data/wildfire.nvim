@@ -22,8 +22,9 @@ end
 
 ---Get inner range (excluding delimiter nodes)
 ---@param node TSNode
+---@param buf? integer buffer number (needed for edge case handling)
 ---@return table|nil {srow, scol, erow, ecol} 1-based vim coordinates
-function M.get_inner_range(node)
+function M.get_inner_range(node, buf)
   local child_count = node:child_count()
   if child_count < 2 then
     return nil
@@ -41,13 +42,36 @@ function M.get_inner_range(node)
   local last_start_row, last_start_col = last:start()
 
   -- Convert to 1-based vim coordinates
-  -- first_end is where content starts, last_start is where content ends
-  return {
-    first_end_row + 1,
-    first_end_col + 1,
-    last_start_row + 1,
-    last_start_col,  -- 0-based exclusive == 1-based inclusive
-  }
+  local srow = first_end_row + 1
+  local scol = first_end_col + 1
+  local erow = last_start_row + 1
+  local ecol = last_start_col  -- 0-based exclusive == 1-based inclusive
+
+  buf = buf or vim.api.nvim_get_current_buf()
+
+  -- Handle edge case: when first delimiter ends at line end,
+  -- content starts at next line's beginning
+  local first_line = vim.api.nvim_buf_get_lines(buf, srow - 1, srow, false)[1]
+  if first_line and scol > #first_line then
+    srow = srow + 1
+    scol = 1
+  end
+
+  -- Handle edge case: when last delimiter is at line start (col 0),
+  -- content ends at previous line's end
+  if ecol < 1 and erow > srow then
+    erow = erow - 1
+    local line = vim.api.nvim_buf_get_lines(buf, erow - 1, erow, false)[1]
+    ecol = line and #line or 1
+  end
+
+  -- Handle empty content: when delimiters are adjacent (e.g., () or {})
+  -- Return nil to indicate no inner content
+  if srow > erow or (srow == erow and scol > ecol) then
+    return nil
+  end
+
+  return { srow, scol, erow, ecol }
 end
 
 return M
