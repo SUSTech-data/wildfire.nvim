@@ -1,17 +1,12 @@
 local api = vim.api
-
 local keymap = vim.keymap
 local utils = require("wildfire.utils")
+local surround = require("wildfire.surround")
+local ts_select = require("vim.treesitter._select")
 
 local M = {}
 
 M.options = {
-    surrounds = {
-        { "(", ")" },
-        { "{", "}" },
-        { "<", ">" },
-        { "[", "]" },
-    },
     keymaps = {
         init_selection = "<CR>",
         node_incremental = "<CR>",
@@ -20,229 +15,112 @@ M.options = {
     filetype_exclude = { "qf" },
 }
 
----@type table<integer, table<TSNode|nil>>
-local selections = {}
-local nodes_all = {}
-local count = 1
+---@type wildfire.Checkpoint
+local checkpoint = require("wildfire.checkpoint").new()
 
-function M.unsurround_coordinates(node_or_range, buf)
-    -- local lines = vim.split(s, "\n")
-    local srow, scol, erow, ecol = utils.get_range(node_or_range)
-
-    -- Validate buffer bounds to prevent index out of bounds error
-    local line_count = vim.api.nvim_buf_line_count(buf)
-    if srow < 1 or erow > line_count or srow > erow then
-        return false, { srow, scol, erow, ecol }
+---@param node TSNode
+---@param buf integer?
+---@return boolean, integer[]
+function M.unsurround_coordinates(node, buf)
+    if surround.is_surround(node) then
+        local inner = surround.get_inner_range(node, buf)
+        if inner then return true, inner end
     end
-
-    -- Validate column bounds for the specific lines
-    if scol < 1 or ecol < 0 then
-        return false, { srow, scol, erow, ecol }
-    end
-
-    -- Use pcall to safely get text, handle any edge cases
-    local ok, lines = pcall(vim.api.nvim_buf_get_text, buf, srow - 1, scol - 1, erow - 1, ecol, {})
-    if not ok or not lines or #lines == 0 then
-        return false, { srow, scol, erow, ecol }
-    end
-
-    local node_text = table.concat(lines, "\n")
-    local match_brackets = nil
-    for _, pair in ipairs(M.options.surrounds) do
-        local pattern = "^%" .. pair[1] .. ".*%" .. pair[2] .. "$"
-        match_brackets = string.match(node_text, pattern)
-        if match_brackets then
-            break
-        end
-    end
-    -- local match_brackets = string.match(node_text, "^%b{}$")
-    --     or string.match(node_text, "^%b()$")
-    --     or string.match(node_text, "^%b[]$")
-    if match_brackets == nil then
-        return false, { srow, scol, erow, ecol }
-    end
-    lines[1] = lines[1]:sub(2)
-    local nsrow, nscol = 0, 0
-    for index, line in ipairs(lines) do
-        if line:match("%S") then
-            nsrow = index
-            nscol = line:len() - line:match("^%s*(.*)"):len()
-            break
-        end
-    end
-
-    lines[#lines] = lines[#lines]:sub(1, -2)
-    local nerow, necol = #lines, 0
-    for index = #lines, 1, -1 do
-        local line = lines[index]
-        if line:match("%S") then
-            nerow = index
-            necol = line:len() - line:match("^(.*%S)%s*$"):len()
-            break
-        end
-    end
-
-    nsrow = srow + nsrow - 1
-    nscol = nsrow == srow and scol + nscol + 1 or nscol + 1
-    -- nerow = erow - nerow + 1
-    nerow = srow + nerow - 1
-    necol = nerow == erow and ecol - necol - 1 or lines[nerow - srow + 1]:len() - necol
-
-    return true, { nsrow, nscol, nerow, necol }
+    return false, { utils.get_range(node) }
 end
+
 local function update_selection_by_node(node)
     local buf = api.nvim_get_current_buf()
-    local node_has_brackets, current_selction = M.unsurround_coordinates(node, buf)
-    local local_selections = selections[buf]
-    local last_selection = local_selections[#local_selections]
-    local use_node = utils.range_match(last_selection, current_selction) or not node_has_brackets
-    utils.update_selection(buf, use_node and node or current_selction)
-    if use_node then
-        table.insert(nodes_all[buf], node)
-        table.insert(local_selections, node)
+    local is_surr, inner_range = M.unsurround_coordinates(node, buf)
+    local last = checkpoint:selection(buf)
+    if is_surr and not utils.range_match(last, inner_range) then
+        utils.update_selection(buf, inner_range)
+        checkpoint:save(buf, inner_range)
     else
-        table.insert(local_selections, current_selction)
+        utils.update_selection(buf, node)
+        checkpoint:save(buf, node)
     end
 end
-local function init_by_node(node)
+
+--- Find TS node at a 1-based range, searching through language trees
+local function find_node_at_range(buf, sr, sc, er, ec)
+    local ok, parser = pcall(vim.treesitter.get_parser, buf)
+    if not ok or not parser then return nil end
+    parser:parse({ sr - 1, er })
+    local range_0 = { sr - 1, sc - 1, er - 1, ec }
+    local lang_tree = parser:language_for_range(range_0)
+    if not lang_tree then return nil end
+    for _, tree in ipairs(lang_tree:trees()) do
+        local node = tree:root():named_descendant_for_range(unpack(range_0))
+        if node then return node end
+    end
+end
+
+function M.init_selection()
+    local node = vim.treesitter.get_node({ ignore_injections = false })
+    if not node then return end
+    local buf = api.nvim_get_current_buf()
+    checkpoint:reset(buf)
+    update_selection_by_node(node)
+    for _ = 1, vim.v.count1 - 1 do
+        M.node_incremental()
+    end
+end
+
+function M.node_incremental()
     local buf = api.nvim_get_current_buf()
 
-    selections[buf] = {}
-    nodes_all[buf] = {}
-    -- utils.update_selection(buf, node)
-    update_selection_by_node(node)
-    -- if vim.tbl_isempty(nodes_all[buf]) and not vim.tbl_isempty(selections[buf]) then
-    -- 	nodes_all[buf] = { node }
-    -- end
-end
-function M.init_selection()
-    count = vim.v.count1
-    local node = vim.treesitter.get_node()
-    if not node then
-        -- No treesitter node available, try to handle gracefully
-        -- Check if treesitter is available for this filetype
-        local buf = api.nvim_get_current_buf()
+    -- Initialize from current visual selection when no prior state
+    if not checkpoint:has_state(buf) then
+        local csrow, cscol, cerow, cecol = utils.visual_selection_range()
         local ok, parser = pcall(vim.treesitter.get_parser, buf)
-        if not ok or not parser then
-            -- No parser available for this filetype
-            vim.notify("Wildfire: No treesitter parser available for this filetype", vim.log.levels.WARN)
-            return
-        end
+        if not ok or not parser then return end
+        local tree = parser:parse()[1]
+        if not tree then return end
+        local node = tree:root():named_descendant_for_range(csrow - 1, cscol - 1, cerow - 1, cecol)
+        if node then update_selection_by_node(node) end
         return
     end
-    init_by_node(node)
-    if count > 1 then
-        for i = 1, count - 1 do
-            M.node_incremental()
-        end
+
+    local csrow, cscol, cerow, cecol = utils.visual_selection_range()
+    ts_select.select_parent(1)
+    local nsr, nsc, ner, nec = utils.visual_selection_range()
+
+    -- No change → at tree root
+    if nsr == csrow and nsc == cscol and ner == cerow and nec == cecol then
+        return
+    end
+
+    local node = find_node_at_range(buf, nsr, nsc, ner, nec)
+    if node then
+        update_selection_by_node(node)
+    else
+        utils.update_selection(buf, { nsr, nsc, ner, nec })
+        checkpoint:save(buf, { nsr, nsc, ner, nec })
     end
 end
-
--- Get the range of the current visual selection.
---
--- The range starts with 1 and the ending is inclusive.
----@return integer, integer, integer, integer
-
----@param get_parent fun(node: TSNode): TSNode|nil
----@return fun():nil
-local function select_incremental(get_parent)
-    return function()
-        local buf = api.nvim_get_current_buf()
-        local nodes = nodes_all[buf]
-        local csrow, cscol, cerow, cecol
-        if count <= 1 then
-            csrow, cscol, cerow, cecol = utils.visual_selection_range()
-        else
-            csrow, cscol, cerow, cecol = utils.get_range(selections[buf][#selections[buf]])
-        end
-
-        -- Initialize incremental selection with current selection
-        if not nodes or #nodes == 0 then
-            -- Use native vim.treesitter API to get the parser
-            local ok, parser = pcall(vim.treesitter.get_parser, buf)
-            if not ok or not parser then
-                -- No parser available for this filetype, fallback to visual selection
-                return
-            end
-            local tree = parser:parse()[1]
-            if not tree then
-                return
-            end
-            local root = tree:root()
-            local node = root:named_descendant_for_range(csrow - 1, cscol - 1, cerow - 1, cecol)
-            if node then
-                update_selection_by_node(node)
-            end
-            return
-        end
-
-        -- Find a node that changes the current selection.
-        local node = nodes[#nodes] ---@type TSNode
-        while true do
-            local parent = get_parent(node)
-            if not parent or parent == node then
-                -- Keep searching in the main tree
-                -- TODO: we should search on the parent tree of the current node.
-                local ok, parser = pcall(vim.treesitter.get_parser, buf)
-                if not ok or not parser then
-                    utils.update_selection(buf, node)
-                    return
-                end
-                local tree = parser:parse()[1]
-                if not tree then
-                    utils.update_selection(buf, node)
-                    return
-                end
-                local root = tree:root()
-                parent = root:named_descendant_for_range(csrow - 1, cscol - 1, cerow - 1, cecol)
-                if not parent or root == node or parent == node then
-                    utils.update_selection(buf, node)
-                    return
-                end
-            end
-            node = parent
-            local nsrow, nscol, nerow, necol = vim.treesitter.get_node_range(node)
-            -- Convert 0-based to 1-based indexing to match vim coordinates
-            -- Note: treesitter end_col is exclusive, but vim coordinates are inclusive
-            nsrow, nscol, nerow, necol = nsrow + 1, nscol + 1, nerow + 1, necol
-            -- necol: 0-based exclusive == 1-based inclusive, so no +1 needed
-
-            local larger_range = utils.range_larger({ nsrow, nscol, nerow, necol }, { csrow, cscol, cerow, cecol })
-
-            if larger_range then
-                update_selection_by_node(node)
-                return
-            end
-        end
-    end
-end
-
-M.node_incremental = select_incremental(function(node)
-    return node:parent() or node
-end)
 
 function M.node_decremental()
     local buf = api.nvim_get_current_buf()
-    local nodes = nodes_all[buf]
-    if not nodes or #nodes < 2 then
-        return
-    end
-
-    local local_selections = selections[buf]
-    table.remove(local_selections)
-    local last_selection = local_selections[#local_selections]
-
-    utils.update_selection(buf, last_selection)
-    if type(last_selection) ~= "table" then
-        table.remove(nodes)
+    local prev = checkpoint:restore(buf)
+    if prev then
+        utils.update_selection(buf, prev)
     end
 end
 
 function M.visual_inner()
     local buf = api.nvim_get_current_buf()
     local csrow, cscol, cerow, cecol = utils.visual_selection_range()
-    local _, selection = M.unsurround_coordinates({ csrow, cscol, cerow, cecol }, buf)
-    utils.update_selection(buf, selection)
+    local ok, parser = pcall(vim.treesitter.get_parser, buf)
+    if not ok or not parser then return end
+    local tree = parser:parse()[1]
+    if not tree then return end
+    local node = tree:root():named_descendant_for_range(csrow - 1, cscol - 1, cerow - 1, cecol)
+    if not node then return end
+    local is_surr, selection = M.unsurround_coordinates(node, buf)
+    if is_surr then
+        utils.update_selection(buf, selection)
+    end
 end
 
 local FUNCTION_DESCRIPTIONS = {
@@ -250,32 +128,25 @@ local FUNCTION_DESCRIPTIONS = {
     node_incremental = "Increment selection to named node",
     node_decremental = "Shrink selection to previous named node",
 }
+
 function M.setup(options)
     if type(options) == "table" then
         M.options = vim.tbl_deep_extend("force", M.options, options)
     end
     for funcname, mapping in pairs(M.options.keymaps) do
-        local mode, rhs, opts
-        opts = { silent = true, noremap = true, desc = FUNCTION_DESCRIPTIONS[funcname] }
-        if funcname == "init_selection" then
-            mode = "n"
-            rhs = M[funcname]
-        else
-            mode = "x"
-            rhs = string.format(":lua require'wildfire'.%s()<CR>", funcname)
-        end
+        local mode = funcname == "init_selection" and "n" or "x"
         if mapping then
-            local augroup_revert = vim.api.nvim_create_augroup("revert" .. mode .. mapping, {})
-            keymap.set(mode, mapping, rhs, opts)
-            vim.api.nvim_create_autocmd({ "FileType" }, {
-                group = augroup_revert,
+            local opts = { silent = true, noremap = true, desc = FUNCTION_DESCRIPTIONS[funcname] }
+            local augroup = api.nvim_create_augroup("revert" .. mode .. mapping, {})
+            keymap.set(mode, mapping, M[funcname], opts)
+            api.nvim_create_autocmd({ "FileType" }, {
+                group = augroup,
                 pattern = M.options.filetype_exclude,
-                desc = "Revert wildfire's keymapping on filetypes",
                 callback = function()
                     keymap.set(mode, mapping, mapping, { buffer = true })
                 end,
             })
-            vim.api.nvim_create_autocmd({ "CmdwinEnter" }, {
+            api.nvim_create_autocmd({ "CmdwinEnter" }, {
                 callback = function()
                     keymap.set(mode, mapping, mapping, { buffer = true })
                 end,
