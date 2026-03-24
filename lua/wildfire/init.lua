@@ -2,7 +2,16 @@ local api = vim.api
 local keymap = vim.keymap
 local utils = require("wildfire.utils")
 local surround = require("wildfire.surround")
-local ts_select = require("vim.treesitter._select")
+local textobjects = require("wildfire.textobjects")
+
+local ok_tss, ts_select = pcall(require, "vim.treesitter._select")
+if not ok_tss then ts_select = nil end
+
+local function use_treesitter(buf)
+    if not ts_select then return false end
+    local ok, parser = pcall(vim.treesitter.get_parser, buf)
+    return ok and parser ~= nil
+end
 
 local M = {}
 
@@ -57,11 +66,20 @@ local function find_node_at_range(buf, sr, sc, er, ec)
 end
 
 function M.init_selection()
-    local node = vim.treesitter.get_node({ ignore_injections = false })
-    if not node then return end
     local buf = api.nvim_get_current_buf()
     checkpoint:reset(buf)
-    update_selection_by_node(node)
+
+    if use_treesitter(buf) then
+        local node = vim.treesitter.get_node({ ignore_injections = false })
+        if not node then return end
+        update_selection_by_node(node)
+    else
+        local range = textobjects.init()
+        if not range then return end
+        utils.update_selection(buf, range)
+        checkpoint:save(buf, range)
+    end
+
     for _ = 1, vim.v.count1 - 1 do
         M.node_incremental()
     end
@@ -70,33 +88,42 @@ end
 function M.node_incremental()
     local buf = api.nvim_get_current_buf()
 
-    -- Initialize from current visual selection when no prior state
-    if not checkpoint:has_state(buf) then
+    if use_treesitter(buf) then
+        -- Initialize from current visual selection when no prior state
+        if not checkpoint:has_state(buf) then
+            local csrow, cscol, cerow, cecol = utils.visual_selection_range()
+            local ok, parser = pcall(vim.treesitter.get_parser, buf)
+            if not ok or not parser then return end
+            local tree = parser:parse()[1]
+            if not tree then return end
+            local node = tree:root():named_descendant_for_range(csrow - 1, cscol - 1, cerow - 1, cecol)
+            if node then update_selection_by_node(node) end
+            return
+        end
+
         local csrow, cscol, cerow, cecol = utils.visual_selection_range()
-        local ok, parser = pcall(vim.treesitter.get_parser, buf)
-        if not ok or not parser then return end
-        local tree = parser:parse()[1]
-        if not tree then return end
-        local node = tree:root():named_descendant_for_range(csrow - 1, cscol - 1, cerow - 1, cecol)
-        if node then update_selection_by_node(node) end
-        return
-    end
+        ts_select.select_parent(1)
+        local nsr, nsc, ner, nec = utils.visual_selection_range()
 
-    local csrow, cscol, cerow, cecol = utils.visual_selection_range()
-    ts_select.select_parent(1)
-    local nsr, nsc, ner, nec = utils.visual_selection_range()
+        -- No change → at tree root
+        if nsr == csrow and nsc == cscol and ner == cerow and nec == cecol then
+            return
+        end
 
-    -- No change → at tree root
-    if nsr == csrow and nsc == cscol and ner == cerow and nec == cecol then
-        return
-    end
-
-    local node = find_node_at_range(buf, nsr, nsc, ner, nec)
-    if node then
-        update_selection_by_node(node)
+        local node = find_node_at_range(buf, nsr, nsc, ner, nec)
+        if node then
+            update_selection_by_node(node)
+        else
+            utils.update_selection(buf, { nsr, nsc, ner, nec })
+            checkpoint:save(buf, { nsr, nsc, ner, nec })
+        end
     else
-        utils.update_selection(buf, { nsr, nsc, ner, nec })
-        checkpoint:save(buf, { nsr, nsc, ner, nec })
+        local csrow, cscol, cerow, cecol = utils.visual_selection_range()
+        local range = textobjects.expand(buf, csrow, cscol, cerow, cecol)
+        if range then
+            utils.update_selection(buf, range)
+            checkpoint:save(buf, range)
+        end
     end
 end
 
